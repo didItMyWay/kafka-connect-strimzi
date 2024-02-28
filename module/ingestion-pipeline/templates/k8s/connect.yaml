@@ -1,0 +1,80 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: ${name}
+  namespace: ${namespace}
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  replicas: ${replicas}
+  version: 2.6.0
+  image: ${account_id}.dkr.ecr.${region_name}.amazonaws.com/${kafka_connect_image_name}:${kafka_connect_image_tag}
+  bootstrapServers: ${kafka_brokers}
+  metricsConfig:
+    type: jmxPrometheusExporter
+    valueFrom:
+      configMapKeyRef:
+        name: connect-metrics
+        key: metrics-config.yml
+  template:
+    serviceAccount:
+      metadata:
+        name: ${service_account_name}
+        labels:
+          name: ${service_account_name}
+        annotations:
+          eks.amazonaws.com/role-arn: ${irsa_role_arn}
+    pod:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+    connectContainer:
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+    initContainer:
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+  tls:
+    trustedCertificates:
+      - secretName: ${secret_name}
+        certificate: ca.pem
+  authentication:
+    type: scram-sha-256
+    username: ${username}
+    passwordSecret:
+      secretName: ${secret_name}
+      password: password
+
+  resources:
+    requests:
+      cpu: 3
+      memory: 9Gi
+    limits:
+      cpu: 4
+      memory: 11Gi
+  jvmOptions:
+    gcLoggingEnabled: false
+  config:
+    group.id: ingestion-connector-${env}
+    key.converter: org.apache.kafka.connect.storage.StringConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    offset.storage.topic: ingestion-connector-offsets-${env}
+    config.storage.topic: ingestion-connector-configs-${env}
+    status.storage.topic: ingestion-connector-status-${env}
+    config.storage.replication.factor: 3
+    offset.storage.replication.factor: 3
+    status.storage.replication.factor: 3
+
+  logging:
+    type: inline
+    loggers:
+      logger.name: "DEBUG"

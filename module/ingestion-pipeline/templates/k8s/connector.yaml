@@ -1,0 +1,44 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: "${connector_name}"
+  namespace: ${namespace}
+  labels:
+    strimzi.io/cluster: "${connect_cluster_name}"
+spec:
+  autoRestart:
+    enabled: true
+  class: io.confluent.connect.s3.S3SinkConnector
+  tasksMax: ${num_tasks}
+  config:
+     "consumer.auto.offset.reset": "latest"
+     "flush.size": "5000"
+     "format.class": "io.confluent.connect.s3.format.json.JsonFormat"
+     "key.converter": "org.apache.kafka.connect.storage.StringConverter"
+     "locale": "de-DE"
+     "name": "${connector_name}"
+     "header.key.eventCreationTime" : "myEventTime"
+     "partition.duration.ms": "${partition_duration_ms}"
+     "partitioner.class": "io.confluent.connect.storage.partitioner.TimeBasedPartitioner"
+     "path.format": "'partition_date'=YYYY-MM-dd/'hour'=HH"
+     "rotate.interval.ms": "${rotate_interval_ms}"
+     "rotate.schedule.interval.ms": "${rotate_schedule_interval_ms}"
+     "s3.bucket.name": "${bucket_name}"
+     "s3.compression.type": "gzip"
+     "s3.region": "eu-central-1"
+     "s3.compression.level": -1
+     "s3.part.size": "5242880"
+     "schemas.enable": "false"
+     "storage.class": "io.confluent.connect.s3.storage.S3Storage"
+     "timezone": "blah/blah"
+     "topics": "my_input_data_topic"
+     "topics.dir": "${data_category}/raw"
+     "timestamp.extractor" : "de.idealo.kafka.connect.storage.partitioner.HeaderFieldTimestampExtractor"
+     "value.converter": "org.apache.kafka.connect.json.JsonConverter"
+     "value.converter.schemas.enable": "false"
+     "transforms" : "extractHeaderTombstoneTransformer"
+     "transforms.extractHeaderTombstoneTransformer.header.key.eventCreationTime" : "myEventTime"
+     "transforms.extractHeaderTombstoneTransformer.type" : "my.package.kafka.connect.transforms.ExtractHeaderTombstoneTransformer$Value"
+     "errors.tolerance": "none"
+     "errors.logs.enable": "true"
+     "errors.log.include.messages": "true"

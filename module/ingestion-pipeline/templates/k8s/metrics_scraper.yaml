@@ -1,0 +1,14 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: connect-metrics-scraper
+  namespace: ${namespace}
+spec:
+  podMetricsEndpoints:
+    - port: tcp-prometheus
+      scheme: http
+      path: /metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-connect
+      strimzi.io/component-type: kafka-connect

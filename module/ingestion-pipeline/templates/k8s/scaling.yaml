@@ -1,0 +1,43 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ${kafka_connect_deployment}-scaledobject
+  namespace: ${namespace}
+spec:
+  scaleTargetRef:
+    name: ${kafka_connect_deployment}
+  pollingInterval: 60
+  cooldownPeriod:   600
+  minReplicaCount:  1
+  maxReplicaCount: 3
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+  triggers:
+  - type: memory
+    metadata:
+      type: Utilization
+      value: "70"
+  - type: cpu
+    metadata:
+      type: Utilization
+      value: "70"
+  - type: kafka
+    metadata:
+      bootstrapServers: ${kafka_brokers}
+      consumerGroup: connect-${kafka_consumer_group}
+      topic: ${kafka_topic}
+      activationLagThreshold: "1"
+      lagThreshold: "${kafka_lag_threshold}"
+      offsetResetPolicy: earliest
+      allowIdleConsumers: "false"
+      scaleToZeroOnInvalidOffset: "false"
+    authenticationRef:
+      name: keda-trigger-kafka-auth
