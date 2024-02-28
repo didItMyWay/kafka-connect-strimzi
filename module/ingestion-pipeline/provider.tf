@@ -14,10 +14,7 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.0"
     }
-    aiven = {
-      source = "aiven/aiven"
-      version = ">= 3.2.1"
-    }
+    
 
   }
 }
