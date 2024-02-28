@@ -7,14 +7,6 @@ variable "kafka_connect_image_tag" {
   default     = "latest"
 }
 
-data "aws_secretsmanager_secret" "AivenTokenSecret" {
-  name = "AivenTokenSecret"
-}
-
-data "aws_secretsmanager_secret_version" "TokenValue" {
-  secret_id = data.aws_secretsmanager_secret.AivenTokenSecret.id
-}
-
 module "strimzi_kafka_operator" {
   source = "../../module/kafka-connect-operator"
 
@@ -41,8 +33,8 @@ module "ingestion_pipeline" {
 
   cluster_config = {
     pipeline_name          = "development-ingestion"
-    kafka_project_name     = "my-dev-kProject"
-    kafka_service_name     = "my-dev-kService"
+    kafka_project_name     = "my-dev-kafka_project"
+    kafka_service_name     = "my-dev-kafka_service"
     kafka_brokers          = "myhost:port"
     connect_execution_role = {
       role_name_to_create     = "connect-s3-sink-dev" 
