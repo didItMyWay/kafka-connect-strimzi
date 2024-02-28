@@ -1,17 +1,17 @@
 variable "team_name" {
   description = "Name of the Team using this project"
   type        = string
-  default     = "B2C Offers"
+  default     = "mine"
 }
 
 variable "project" {
   description = "Project Name"
   type        = string
-  default     = "offerlist-dl-ingestion"
+  default     = "demo-ingestion"
 }
 
 variable "environment" {
-  description = "AWS Environment for stage and prod"
+  description = "environment"
   type        = string
   default     = "dev"
 }
@@ -68,12 +68,10 @@ variable "strimzi_release_name" {
 
 variable "kafka_connect_image_repo" {
   type = string
-  default = "offerlist-kafka-connect"
-  description = "AWS ECR Repository Name for Kafka Connect"
+  default = "kafka-connect"
 }
 
 variable "kafka_connect_image_tag" {
   type        = string
   default     = "latest"
-  description = "AWS ECR Image Tag for Kafka Connect"
 }
