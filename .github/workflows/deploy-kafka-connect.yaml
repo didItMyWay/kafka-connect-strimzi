@@ -1,0 +1,181 @@
+on:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        description: Deployment env
+        required: true
+      deployment_role_arn:
+        type: string
+        description: Java main class
+        required: true
+      image_tag:
+        type: string
+        description: kafka connect image tag
+        required: true
+
+jobs:
+  terraform-plan:
+    name: Plan Deployment of Kafka Connect
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    env:
+      TF_VAR_kafka_connect_image_tag: ${{ inputs.image_tag }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./main/${{ inputs.env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Retrieve tool versions
+        id: tool-versions
+        run: |
+          echo "terraform=$(cat .terraform-version)" >> $GITHUB_OUTPUT
+          echo "terragrunt=$(cat .terragrunt-version)" >> $GITHUB_OUTPUT
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tool-versions.outputs.terraform }}
+          terraform_wrapper: false
+
+      - name: Setup pull credentials for dependencies
+        uses: de-vri-es/setup-git-credentials@v2
+        with:
+          credentials: https://my-account@github.com/
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: XXX
+          role-to-assume: ${{ inputs.deployment_role_arn }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          output_file="tf_${{ inputs.env }}.out"
+          terraform plan -no-color -out "${output_file}"
+          terraform show -no-color "${output_file}" >${GITHUB_WORKSPACE}/plan.out
+        continue-on-error: true
+
+      - name: Upload TF Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf_${{ inputs.env }}.out
+          path: ./main/${{ inputs.env }}/tf_${{ inputs.env }}.out
+          if-no-files-found: error
+          retention-days: 1
+        if: github.event_name != 'pull_request'
+
+      - name: Update Pull Request with Plan
+        uses: actions/github-script@v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const run_url = process.env.GITHUB_SERVER_URL + '/' + process.env.GITHUB_REPOSITORY + '/actions/runs/' + process.env.GITHUB_RUN_ID
+            const run_link = '<a href="' + run_url + '">Actions</a>.'
+            const fs = require('fs')
+            const plan_file = fs.readFileSync('plan.out', 'utf8')
+            const plan = plan_file.length > 65000 ? plan_file.toString().substring(0, 65000) + " ..." : plan_file
+            const truncated_message = plan_file.length > 65000 ? "Output is too long and was truncated. You can read full Plan in " + run_link + "<br /><br />" : ""
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            Env: ${{inputs.environment}}
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${plan}
+            \`\`\`
+
+            </details>
+            ${truncated_message}
+            *Pusher: @${{ github.actor }}, Action: \`${{github.event_name}}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      # Stop if plan has failed
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+  terraform-apply:
+    name: Deploy Kafka Connect
+    needs: terraform-plan
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env }}
+    if: github.ref == 'refs/heads/main'
+    env:
+      TF_VAR_kafka_connect_image_tag: ${{ inputs.image_tag }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./main/${{ inputs.env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Retrieve tool versions
+        id: tool-versions
+        run: |
+          echo "terraform=$(cat .terraform-version)" >> $GITHUB_OUTPUT
+          echo "terragrunt=$(cat .terragrunt-version)" >> $GITHUB_OUTPUT
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ steps.tool-versions.outputs.terraform }}
+          terraform_wrapper: false
+
+      - name: Setup pull credentials for dependencies
+        uses: de-vri-es/setup-git-credentials@v2
+        with:
+          credentials: https://my-repo@github.com/
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: XXX
+          role-to-assume: ${{ inputs.deployment_role_arn }}
+
+      - name: Download TF Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tf_${{ inputs.env }}.out
+          path: ./main/${{ inputs.env }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        id: plan
+        run: |
+          terraform apply tf_${{ inputs.env }}.out

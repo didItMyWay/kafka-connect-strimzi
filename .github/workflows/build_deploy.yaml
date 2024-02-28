@@ -1,0 +1,73 @@
+name: Build and deploy
+
+on:
+  workflow_dispatch: { }
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker-kafka-connect-s3/**'
+      - '**/*.hcl'
+      - '**/*.tf'
+      - '**/*.tfvars'
+      - 'module/**/*.yaml'
+      - '!.github/workflows/*.yaml'
+      - '!docs/**'
+      - '!examples/**'
+  pull_request:
+    paths:
+      - 'docker-kafka-connect-s3/**'
+      - '**/*.hcl'
+      - '**/*.tf'
+      - '**/*.tfvars'
+      - 'module/**/*.yaml'
+      - '.github/workflows/*.yaml'
+      - '!docs/**'
+      - '!examples/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ECR_REPO_NAME: my-kafka-connect
+    outputs:
+      IMAGE_TAG: ${{ steps.determine_tag.outputs.COMMIT_ID }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - id: determine_tag
+        name: Extract Git commit ID
+        run: |
+          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: XXX
+          aws-region: 'XXX'
+          role-duration-seconds: 1200
+
+      - name: Upload image to ECR'
+        if: github.ref == 'refs/heads/main'
+        uses: appleboy/docker-ecr-action@master
+        with:
+          repo: ${{ env.ECR_REPO_NAME }}
+          registry: XX
+          build_args: "GITHUB_PACKAGES_TOKEN=${{ secrets.XXX }}"
+          dockerfile: ./docker-kafka-connect-s3/Dockerfile
+          tags: ${{ env.COMMIT_ID }}
+
+  deployment:
+    name: Deploy
+    needs: build
+    uses: "./.github/workflows/deploy-kafka-connect.yaml"
+    with:
+      stage: dev
+      deployment_role_arn: XXX
+      image_tag: ${{needs.build.outputs.IMAGE_TAG}}
