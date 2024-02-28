@@ -1,0 +1,6 @@
+# Local .terraform directories
+**/.terraform/*
+
+.idea/
+main/dev/.terraform.lock.hcl
+main/dev/.terraform/
