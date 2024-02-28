@@ -1,5 +1,4 @@
-variable "team_name" {
-  description = "Name of the Team using this project"
+variable "Group_name" {
   type        = string
   default     = "mine"
 }
